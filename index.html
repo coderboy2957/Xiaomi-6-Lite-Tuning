@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xiaomi E-Scooter Control & Telemetrie</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            900: '#064e3b',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Top Navigation / Header -->
+    <header class="sticky top-0 z-50 glass border-b border-slate-800 px-4 lg:px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-bolt text-slate-950 text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight flex items-center gap-2">
+                    Xiaomi Scooter Hub 
+                    <span id="connection-badge" class="px-2 py-0.5 text-xs font-medium rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">Getrennt</span>
+                </h1>
+                <p class="text-xs text-slate-400">Web Bluetooth API & Testgelände Control</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <button id="btn-demo" onclick="toggleDemoMode()" class="px-3 py-2 text-xs font-medium rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-flask"></i> <span id="demo-btn-text">Demo-Modus</span>
+            </button>
+            <button id="btn-connect" onclick="connectBluetooth()" class="px-4 py-2 text-sm font-semibold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 shadow-lg shadow-emerald-500/20 transition flex items-center gap-2">
+                <i class="fa-brands fa-bluetooth-b"></i> Verbinden
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+
+        <!-- Safety Warning Banner for Test Track -->
+        <div class="glass-card rounded-2xl p-4 border-amber-500/30 bg-amber-500/5 flex items-start gap-4">
+            <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+                <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+            </div>
+            <div class="flex-1 text-sm">
+                <h4 class="font-semibold text-amber-300">Sicherheitshinweis & Testgelände-Modus</h4>
+                <p class="text-slate-300 mt-0.5">Das Anheben der Höchstgeschwindigkeit auf 30 km+ und das Deaktivieren von Limits sind ausschließlich für geschlossene Testgelände vorgesehen. Im öffentlichen Straßenverkehr (StVO) nicht zulässig!</p>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- Speedometer Card -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:bg-emerald-500/10 transition"></div>
+                <div class="flex items-center justify-between text-slate-400 text-sm">
+                    <span>Geschwindigkeit</span>
+                    <i class="fa-solid fa-gauge text-emerald-400"></i>
+                </div>
+                <div class="my-4 flex items-baseline gap-2">
+                    <span id="val-speed" class="text-5xl font-extrabold tracking-tight text-white">0.0</span>
+                    <span class="text-slate-400 font-medium">km/h</span>
+                </div>
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="speed-bar" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+            </div>
+
+            <!-- Battery Card -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-teal-500/5 rounded-full blur-xl group-hover:bg-teal-500/10 transition"></div>
+                <div class="flex items-center justify-between text-slate-400 text-sm">
+                    <span>Akkustand</span>
+                    <i class="fa-solid fa-battery-three-quarters text-teal-400"></i>
+                </div>
+                <div class="my-4 flex items-baseline gap-2">
+                    <span id="val-battery" class="text-5xl font-extrabold tracking-tight text-white">--</span>
+                    <span class="text-slate-400 font-medium">%</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400">
+                    <span id="val-voltage">-- V</span>
+                    <span id="val-range">Est. -- km</span>
+                </div>
+            </div>
+
+            <!-- Motor Heat / Temperature Card -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/5 rounded-full blur-xl group-hover:bg-rose-500/10 transition"></div>
+                <div class="flex items-center justify-between text-slate-400 text-sm">
+                    <span>Motortemperatur (Hitze)</span>
+                    <i class="fa-solid fa-fire text-rose-400"></i>
+                </div>
+                <div class="my-4 flex items-baseline gap-2">
+                    <span id="val-temp" class="text-5xl font-extrabold tracking-tight text-white">--</span>
+                    <span class="text-slate-400 font-medium">°C</span>
+                </div>
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="temp-bar" class="bg-rose-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+            </div>
+
+            <!-- Current & Power Card -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden group">
+                <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:bg-sky-500/10 transition"></div>
+                <div class="flex items-center justify-between text-slate-400 text-sm">
+                    <span>Motorstrom / Last</span>
+                    <i class="fa-solid fa-bolt-lightning text-sky-400"></i>
+                </div>
+                <div class="my-4 flex items-baseline gap-2">
+                    <span id="val-current" class="text-5xl font-extrabold tracking-tight text-white">--</span>
+                    <span class="text-slate-400 font-medium">A</span>
+                </div>
+                <div class="text-xs text-slate-400 flex justify-between">
+                    <span>Leistung: <strong id="val-power" class="text-slate-200">0 W</strong></span>
+                    <span id="val-mode" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300">Modus: Sport</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Interactive Control & Tuning Tabs -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left 2 Cols: Advanced Configuration & Test Track Tuning -->
+            <div class="lg:col-span-2 glass-card rounded-2xl p-6 space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-emerald-400"></i> Erweiterte Konfiguration & Testgelände
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Software-Parameter direkt über Bluetooth anpassen und Test-Modi aktivieren.</p>
+                </div>
+
+                <div class="space-y-5">
+                    
+                    <!-- Speed Limit Unlock / Test Track Mode -->
+                    <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="font-medium text-sm text-slate-200 block">Testgelände Geschwindigkeits-Limit</span>
+                                <span class="text-xs text-slate-400">Erhöht die Höchstgeschwindigkeit für Motortests auf bis zu 35 km/h.</span>
+                            </div>
+                            <span id="speed-limit-label" class="text-emerald-400 font-bold text-lg">20 km/h</span>
+                        </div>
+                        <input id="slider-speed-limit" type="range" min="15" max="35" value="20" step="1" 
+                               oninput="updateSpeedLimitSlider(this.value)"
+                               class="w-full accent-emerald-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+                        <div class="flex justify-between text-xs text-slate-500">
+                            <span>15 km/h (Standard)</span>
+                            <span>20 km/h (DE ABE)</span>
+                            <span>30 km/h (Test)</span>
+                            <span>35 km/h (Max)</span>
+                        </div>
+                    </div>
+
+                    <!-- Zero Start & KERS Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <!-- Zero Start Toggle -->
+                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                            <div>
+                                <span class="font-medium text-sm text-slate-200 block">Zero-Start (Anfahrschutz)</span>
+                                <span class="text-xs text-slate-400">Direkt Gas geben ohne Anschieben.</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input id="toggle-zerostart" type="checkbox" onchange="sendConfigCommand('zerostart', this.checked)" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                        </div>
+
+                        <!-- KERS / Energy Recovery Level -->
+                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-medium text-sm text-slate-200">KERS Rekuperation</span>
+                                <span id="kers-val-label" class="text-xs text-emerald-400 font-semibold">Mittel</span>
+                            </div>
+                            <select id="select-kers" onchange="sendConfigCommand('kers', this.value)" class="w-full bg-slate-800 border border-slate-700 text-xs rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500">
+                                <option value="0">Aus (Freilauf)</option>
+                                <option value="1">Schwach</option>
+                                <option value="2" selected>Mittel</option>
+                                <option value="3">Stark</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    <!-- Quick Action Buttons -->
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <button onclick="sendScooterCommand('lock')" class="px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold transition flex items-center gap-2">
+                            <i class="fa-solid fa-lock"></i> Motor sperren (App Lock)
+                        </button>
+                        <button onclick="sendScooterCommand('unlock')" class="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-semibold transition flex items-center gap-2">
+                            <i class="fa-solid fa-lock-open"></i> Entsperren
+                        </button>
+                        <button onclick="sendScooterCommand('light')" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition flex items-center gap-2">
+                            <i class="fa-solid fa-lightbulb"></i> Licht umschalten
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Right Col: Full Data & Diagnostic Inspector -->
+            <div class="glass-card rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-microchip text-teal-400"></i> Diagnose & System Info
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Firmware, BMS-Status & RAW GATT Daten.</p>
+                </div>
+
+                <div class="space-y-3 font-mono text-xs bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex-1 overflow-y-auto max-h-64">
+                    <div class="flex justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">Modell:</span>
+                        <span id="info-model" class="text-slate-200">Xiaomi Scooter 6 Lite</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">Firmware BLE:</span>
+                        <span id="info-fw" class="text-slate-200">v3.2.1-PRO</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">Kilometerstand:</span>
+                        <span id="info-odo" class="text-emerald-400">142.8 km</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">BMS Status:</span>
+                        <span id="info-bms" class="text-emerald-400">Normal (6 Schutz aktiv)</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-2">
+                        <span class="text-slate-400">Fehlercode:</span>
+                        <span id="info-error" class="text-emerald-400">Keine (0x00)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Bluetooth RSSI:</span>
+                        <span id="info-rssi" class="text-slate-200">-- dBm</span>
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <button onclick="clearConsoleLog()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl border border-slate-700 transition">
+                        Konsole / Log zurücksetzen
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Live Log / Console Output -->
+        <div class="glass-card rounded-2xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-terminal text-emerald-400"></i> Bluetooth & System Log
+                </span>
+                <span id="log-status" class="text-xs text-slate-500">Bereit</span>
+            </div>
+            <div id="console-log" class="bg-slate-950 font-mono text-xs text-slate-300 p-4 rounded-xl h-36 overflow-y-auto border border-slate-900 space-y-1">
+                <div class="text-slate-500">[System] App erfolgreich geladen. Bereit zur Bluetooth-Verbindung oder Demo-Start.</div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 text-center text-xs text-slate-500 border-t border-slate-900">
+        Xiaomi Electric Scooter 6 Lite Web Interface &bull; Powered by Web Bluetooth API
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // State Variables
+        let bluetoothDevice = null;
+        let bluetoothServer = null;
+        let isDemoMode = false;
+        let demoInterval = null;
+
+        // Mock State for Demo / Telemetry
+        let mockState = {
+            speed: 0.0,
+            battery: 84,
+            voltage: 39.6,
+            temp: 28.4,
+            current: 1.2,
+            power: 45,
+            odo: 142.8,
+            maxSpeedSetting: 20
+        };
+
+        // UI Logger helper
+        function logMessage(msg, type = 'info') {
+            const consoleDiv = document.getElementById('console-log');
+            const time = new Date().toLocaleTimeString();
+            let colorClass = 'text-slate-300';
+            if (type === 'success') colorClass = 'text-emerald-400';
+            if (type === 'error') colorClass = 'text-rose-400';
+            if (type === 'warn') colorClass = 'text-amber-400';
+
+            consoleDiv.innerHTML += `<div class="${colorClass}">[${time}] ${msg}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        function clearConsoleLog() {
+            document.getElementById('console-log').innerHTML = '<div class="text-slate-550">[System] Log gereinigt.</div>';
+        }
+
+        // Toggle Demo Mode
+        function toggleDemoMode() {
+            isDemoMode = !isDemoMode;
+            const btnText = document.getElementById('demo-btn-text');
+            const badge = document.getElementById('connection-badge');
+
+            if (isDemoMode) {
+                btnText.textContent = "Demo aktiv";
+                badge.textContent = "Demo verbunden";
+                badge.className = "px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                logMessage("Demo-Modus gestartet. Simuliere Xiaomi Scooter 6 Lite Telemetrie.", "success");
+                startDemoSimulation();
+            } else {
+                btnText.textContent = "Demo-Modus";
+                badge.textContent = "Getrennt";
+                badge.className = "px-2 py-0.5 text-xs font-medium rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20";
+                if (demoInterval) clearInterval(demoInterval);
+                logMessage("Demo-Modus beendet.", "warn");
+                resetTelemetryDisplay();
+            }
+        }
+
+        function startDemoSimulation() {
+            if (demoInterval) clearInterval(demoInterval);
+            demoInterval = setInterval(() => {
+                // Simulate small fluctuations
+                mockState.speed = Math.max(0, (Math.sin(Date.now() / 1000) * 15 + 15).toFixed(1));
+                if (mockState.speed > mockState.maxSpeedSetting) {
+                    mockState.speed = parseFloat(mockState.maxSpeedSetting);
+                }
+                mockState.current = (Math.random() * 8 + 2).toFixed(1);
+                mockState.power = (mockState.voltage * mockState.current).toFixed(0);
+                mockState.temp = (28 + Math.sin(Date.now() / 5000) * 4).toFixed(1);
+                
+                updateTelemetryUI(mockState);
+            }, 1000);
+        }
+
+        function updateTelemetryUI(data) {
+            document.getElementById('val-speed').textContent = data.speed;
+            document.getElementById('speed-bar').style.width = `${(data.speed / 35) * 100}%`;
+            
+            document.getElementById('val-battery').textContent = data.battery;
+            document.getElementById('val-voltage').textContent = `${data.voltage} V`;
+            document.getElementById('val-range').textContent = `Est. ${(data.battery * 0.25).toFixed(1)} km`;
+
+            document.getElementById('val-temp').textContent = data.temp;
+            document.getElementById('temp-bar').style.width = `${(data.temp / 60) * 100}%`;
+
+            document.getElementById('val-current').textContent = data.current;
+            document.getElementById('val-power').textContent = `${data.power} W`;
+            document.getElementById('info-rssi').textContent = "-58 dBm";
+        }
+
+        function resetTelemetryDisplay() {
+            document.getElementById('val-speed').textContent = "0.0";
+            document.getElementById('speed-bar').style.width = "0%";
+            document.getElementById('val-battery').textContent = "--";
+            document.getElementById('val-voltage').textContent = "-- V";
+            document.getElementById('val-range').textContent = "Est. -- km";
+            document.getElementById('val-temp').textContent = "--";
+            document.getElementById('temp-bar').style.width = "0%";
+            document.getElementById('val-current').textContent = "--";
+            document.getElementById('val-power').textContent = "0 W";
+            document.getElementById('info-rssi').textContent = "-- dBm";
+        }
+
+        // Web Bluetooth API Integration
+        async function connectBluetooth() {
+            if (!navigator.bluetooth) {
+                logMessage("Web Bluetooth API wird von diesem Browser nicht unterstützt (Bitte Chrome/Edge verwenden).", "error");
+                return;
+            }
+
+            try {
+                logMessage("Suche nach Xiaomi E-Scooter Geräten...", "info");
+                
+                // Request Bluetooth Device matching Xiaomi generic names or services
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [
+                        '000018f0-0000-1000-8000-00805f9b34fb', // Common Xiaomi service UUID pattern
+                        '0000ffe0-0000-1000-8000-00805f9b34fb',
+                        '6e400001-b5a3-f393-e0a9-e50e24dcca9e'  // Nordic UART often used
+                    ]
+                });
+
+                logMessage(`Gefunden: ${bluetoothDevice.name || 'Unbekanntes Gerät'}. Verbinde GATT...`, "info");
+                
+                bluetoothServer = await bluetoothDevice.gatt.connect();
+                logMessage("GATT-Verbindung erfolgreich hergestellt!", "success");
+
+                const badge = document.getElementById('connection-badge');
+                badge.textContent = "Verbunden";
+                badge.className = "px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+            } catch (error) {
+                logMessage(`Bluetooth Fehler: ${error.message}`, "error");
+            }
+        }
+
+        function onDisconnected() {
+            logMessage("Bluetooth-Verbindung getrennt.", "warn");
+            const badge = document.getElementById('connection-badge');
+            badge.textContent = "Getrennt";
+            badge.className = "px-2 py-0.5 text-xs font-medium rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20";
+            resetTelemetryDisplay();
+        }
+
+        // Speed Limit Slider for Test Track
+        function updateSpeedLimitSlider(val) {
+            document.getElementById('speed-limit-label').textContent = `${val} km/h`;
+            mockState.maxSpeedSetting = parseInt(val);
+            if (val > 25) {
+                logMessage(`[Testgelände] Höchstgeschwindigkeit auf ${val} km/h angehoben! Nur für Testzwecke.`, "warn");
+            } else {
+                logMessage(`Geschwindigkeitslimit auf ${val} km/h gesetzt.`, "info");
+            }
+        }
+
+        // Send Configuration Commands
+        function sendConfigCommand(param, value) {
+            if (isDemoMode) {
+                if (param === 'zerostart') {
+                    logMessage(`[Demo] Zero-Start (Anfahrschutz) ist nun: ${value ? 'AKTIVIERT' : 'DEAKTIVIERT'}`, "success");
+                } else if (param === 'kers') {
+                    const levels = ['Aus', 'Schwach', 'Mittel', 'Stark'];
+                    document.getElementById('kers-val-label').textContent = levels[value];
+                    logMessage(`[Demo] KERS Rekuperation auf Stufe ${levels[value]} (${value}) gestellt.`, "success");
+                }
+                return;
+            }
+
+            if (!bluetoothServer || !bluetoothServer.connected) {
+                logMessage("Keine aktive Bluetooth-Verbindung. Bitte zuerst verbinden oder Demo-Modus nutzen.", "error");
+                return;
+            }
+
+            logMessage(`Sende Befehl (${param} = ${value}) an Scooter...`, "info");
+            // Hier würde die BLE Characteristic Write Operation erfolgen
+        }
+
+        // Quick Action Commands
+        function sendScooterCommand(action) {
+            if (isDemoMode) {
+                if (action === 'lock') logMessage("[Demo] Scooter wurde digital gesperrt (Motor blockiert).", "warn");
+                if (action === 'unlock') logMessage("[Demo] Scooter wurde entsperrt.", "success");
+                if (action === 'light') logMessage("[Demo] Scheinwerfer Status umgeschaltet.", "info");
+                return;
+            }
+
+            if (!bluetoothServer || !bluetoothServer.connected) {
+                logMessage("Keine aktive Bluetooth-Verbindung. Bitte verbinden.", "error");
+                return;
+            }
+
+            logMessage(`Führe Aktion aus: ${action}`, "info");
+        }
+    </script>
+</body>
+</html>
