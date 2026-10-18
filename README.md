@@ -1,5 +1,5 @@
 # Xiaomi-6-Lite-Tuning 
-Includes Zero Start and it can reach speeds up to 35 km/h (21,7 mph)
+Includes Zero Start and can reach speeds up to 35 km/h (21,7 mph)
 
 # Tutorial 
 
